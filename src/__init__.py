@@ -1,2 +1,2 @@
-from PINN import *
-from loss import *
+# from PINN import *
+# from loss import *

@@ -1,5 +1,5 @@
 import numpy as np
-import h5py
+
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
@@ -7,7 +7,7 @@ import glob
 import os
 from typing import Optional
 
-class Dataset4DFlowNet(Dataset):
+class DatasetPINN(Dataset):
     # constructor
     def __init__(self,
                  data_dir: str = './data/demo_geo_model.npy',
@@ -28,8 +28,8 @@ class Dataset4DFlowNet(Dataset):
         return (pos, vol)
 
 if __name__ == "__main__":
-    dataset = Dataset4DFlowNet()
+    dataset = DatasetPINN()
     print(len(dataset))
     dataloader = DataLoader(dataset, batch_size=len(dataset))
-    print(len(dataloader))
+    
     

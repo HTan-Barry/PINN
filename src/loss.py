@@ -25,11 +25,12 @@ def mean_squared_error(pred, exact):
 
 def fwd_gradients(Y, x):
     dummy = torch.ones_like(Y)
-    G = torch.autograd.grad(Y, x, dummy, create_graph= True)[0]
+    G = torch.autograd.grad(Y, x, dummy, create_graph= True)
     return G
 
 class Navier_Stokes_3D(nn.Module):
     def __init__(self, Rey, Pec):
+        super(Navier_Stokes_3D, self).__init__()
         self.Pec = Pec
         self.Rey = Rey
 
@@ -37,12 +38,14 @@ class Navier_Stokes_3D(nn.Module):
     def forward(self, pred, data):
         c, u, v, w, p = pred[:,0], pred[:,1], pred[:,2], pred[:,3], pred[:,4]
         
+        
 
-        c_txyz = fwd_gradients(c, data)
-        u_txyz = fwd_gradients(u, data)
-        v_txyz = fwd_gradients(v, data)
-        w_txyz = fwd_gradients(w, data)
-        p_txyz = fwd_gradients(p, data)
+        # c_txyz = fwd_gradients(c, data)
+        # u_txyz = fwd_gradients(u, data)
+        # v_txyz = fwd_gradients(v, data)
+        # w_txyz = fwd_gradients(w, data)
+        # p_txyz = fwd_gradients(p, data)
+        print(fwd_gradients(c, data[1]))
         
         c_t = c_txyz[:,0:1]
         c_x = c_txyz[:,1:2]
@@ -106,3 +109,10 @@ class Navier_Stokes_3D(nn.Module):
         e5 = u_x + v_y + w_z
         
         return e1, e2, e3, e4, e5
+class veolicity_loss(nn.Module):
+    def __init__(self):
+        super(veolicity_loss, self).__init__()
+        
+    def forward(self, pred, data):
+        pred_speed = pred[:, -4:-1]
+        return loss(pred_speed, data)

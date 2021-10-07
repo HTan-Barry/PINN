@@ -25,7 +25,7 @@ class pinn(nn.Module):
 
         self.net = nn.Sequential(net_dict)
     
-    def forward(x):
+    def forward(self, x):
         out = self.net(x)
         
         return out
