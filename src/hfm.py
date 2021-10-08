@@ -44,7 +44,6 @@ class HFM(object):
         idx_eqns = np.random.choice(N_eqns, batch_size)
         
         # wrap with Variable, might be sent to GPU
-        data_batch = Variable(torch.from_numpy(self.data[idx_data,:]).float(), requires_grad = True)
         eqns_batch = Variable(torch.from_numpy(self.eqns[idx_eqns,:]).float(), requires_grad = True)
 
         # predict and split
@@ -80,28 +79,30 @@ class HFM(object):
             loss.backward()
             optimizer.step()
             
+            
+    
+            # if it % 1 == 0:
+            elapsed = time.time() - start_time
+            running_time += elapsed/3600.0
+            print('It: %d, Loss: %.3e, Time: %.2fs, Running Time: %.2fh'
+                    %(it, loss, elapsed, running_time))
+            sys.stdout.flush()
+            start_time = time.time()
+            
             if(loss < 1e-2 and loss < min_loss):
                 min_loss = float(loss)
-                torch.save(self.net.state_dict(), "../Results/model_min_loss_" + version + ".pth")
-    
-            if it % 10 == 0:
-                elapsed = time.time() - start_time
-                running_time += elapsed/3600.0
-                print('It: %d, Loss: %.3e, Time: %.2fs, Running Time: %.2fh'
-                      %(it, loss, elapsed, running_time))
-                sys.stdout.flush()
-                start_time = time.time()
+                torch.save(self.net.state_dict(), "./results/model_min_loss_" + version + ".pth")
 
                 
             if it % 10000 == 0:
-                torch.save(self.net.state_dict(), "../Results/model_updating_" + version + ".pth")
-                self.dm.saveData()
+                torch.save(self.net.state_dict(), "./results/model_updating_" + version + ".pth")
+                # self.dm.saveData()
             
             it += 1
             
         # try to save traing error after training is finished
-        torch.save(self.net.state_dict(), "../Results/model_40_hours_" + version + ".pth")
-        self.dm.saveData()
+        torch.save(self.net.state_dict(), "./results/model_40_hours_" + version + ".pth")
+        # self.dm.saveData()
         
 
         
@@ -136,7 +137,7 @@ if(len(sys.argv) >= 5):
 
 # model parameters
 batch_size = 10000
-layers = [3] + 10*[4*50] + [4]
+layers = [4] + 10*[4*50] + [5]
 lr = 8e-5
 traing_time = 40
 
@@ -152,27 +153,20 @@ Variable = lambda *args, **kwargs: autograd.Variable(*args, **kwargs).to(device)
 ######################################################################
 # Load Data
 print("Start Processing Data.")
-data = np.load("../Data/demo_geo_model.npy")
+data = np.load("./data/demo_geo_model.npy")
     
-t_star = data[0, 0] # T x 1
-x_star = data[:, 1] # N x 1
-y_star = data[:, 2] # N x 1
-z_star = data[:, 3] 
+T_star = data[:, :, 0] # N x T
+X_star = data[:, :, 1] # N x T
+Y_star = data[:, :, 2] # N x T
+Z_star = data[:, :, 3] 
     
-T = 1 # t_star.shape[0]
-N = x_star.shape[0]
+T = T_star.shape[1]
+N = X_star.shape[0]
         
-U_star = data[:, 4] # N x T
-V_star = data[:, 5] # N x T
-W_star = data[:, 6]
+U_star = data[:, :, 4] # N x T
+V_star = data[:, :, 5] # N x T
+W_star = data[:, :, 6]
     
-# Rearrange Data
-T_star = np.tile(t_star, (1,N)).T # N x T
-X_star = np.tile(x_star, (1,T)) # N x T
-Y_star = np.tile(y_star, (1,T)) # N x T
-Z_star = np.tile(z_star, (1,T)) # N x T
-    
-
 # T_data <- system in
 # N_data <- system in
     
