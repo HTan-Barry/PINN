@@ -22,17 +22,17 @@ class HFM(object):
     # _data: input-output data
     # _star: preditions
     
-    def __init__(self, data, eqns, layers, Pec, Rey):
+    def __init__(self, eqns, vol, layers, Pec, Rey):
         # specs & flow properties
         self.layers = layers
         self.Pec = Pec
         self.Rey = Rey
         # data
-        [self.data, self.eqns] = [data, eqns]
+        [self.eqns, self.vol] = [eqns, vol]
         # dat manager util
         self.dm = dataManager(using_visdom, version)
         # physics "uninformed" neural networks
-        self.net = neural_net(self.layers, data, USE_CUDA, device)
+        self.net = neural_net(self.layers, eqns, USE_CUDA, device)
         #self.net.load_state_dict(torch.load("../Results/model_updating_v10.pth"))
         #print("loading v10")
         self.net.to(device)
@@ -40,26 +40,36 @@ class HFM(object):
             
     
     def compute_loss(self, batch_size, it):
-        idx_data = np.random.choice(N_data, min(batch_size, N_data))
         idx_eqns = np.random.choice(N_eqns, batch_size)
         
         # wrap with Variable, might be sent to GPU
         eqns_batch = Variable(torch.from_numpy(self.eqns[idx_eqns,:]).float(), requires_grad = True)
+        vol_batch = Variable(torch.from_numpy(self.vol[idx_eqns,:]).float(), requires_grad = True)
+        
 
         # predict and split
-        
+        [u_eqns_data, v_eqns_data, w_eqns_data] = torch.split(self.net(vol_batch), 1,1)
         [c_eqns_pred, u_eqns_pred, v_eqns_pred, w_eqns_pred, p_eqns_pred] = torch.split(self.net(eqns_batch), 1,1)
         [e1_eqns_pred, e2_eqns_pred, e3_eqns_pred, e4_eqns_pred, e5_eqns_pred] = \
             Navier_Stokes_3D(c_eqns_pred, u_eqns_pred, v_eqns_pred, w_eqns_pred, p_eqns_pred,
                              eqns_batch, self.Pec, self.Rey)
         
         # get loss
+        # NS equ
         e1_loss = mean_squared_error(e1_eqns_pred, torch.zeros_like(e1_eqns_pred))
         e2_loss = mean_squared_error(e2_eqns_pred, torch.zeros_like(e1_eqns_pred))
         e3_loss = mean_squared_error(e3_eqns_pred, torch.zeros_like(e1_eqns_pred))
         e4_loss = mean_squared_error(e4_eqns_pred, torch.zeros_like(e1_eqns_pred))
         e5_loss = mean_squared_error(e5_eqns_pred, torch.zeros_like(e1_eqns_pred))
-        loss = (e1_loss + e2_loss + e3_loss + e4_loss + e5_loss)
+
+        # Vol diff
+        u_loss = mean_squared_error(u_eqns_pred, u_eqns_data)
+        v_loss = mean_squared_error(v_eqns_pred, v_eqns_data)
+        w_loss = mean_squared_error(w_eqns_pred, w_eqns_data)
+
+        
+
+        loss = (e1_loss + e2_loss + e3_loss + e4_loss + e5_loss) + (u_loss + v_loss + w_loss)
         
         # update datamanger and return
         self.dm.update(e1_loss, e2_loss, e3_loss, e4_loss, e5_loss, loss, it)
@@ -144,7 +154,7 @@ traing_time = 40
 # If cuda is available, use cuda
 USE_CUDA = torch.cuda.is_available()
 print("Using cuda " + str(device_num)) if USE_CUDA else print("Not using cuda.")
-device = torch.device('cuda:' + device_num) if USE_CUDA else torch.device('cpu')
+device = torch.device('cuda:' + str(device_num)) if USE_CUDA else torch.device('cpu')
 Variable = lambda *args, **kwargs: autograd.Variable(*args, **kwargs).to(device) if USE_CUDA else autograd.Variable(*args, **kwargs)
 
 
@@ -169,15 +179,7 @@ W_star = data[:, :, 6]
     
 # T_data <- system in
 # N_data <- system in
-    
-idx_t = np.concatenate([np.array([0]), np.random.choice(T-2, T_data-2, replace=False)+1, np.array([T-1])] )
-idx_x = np.random.choice(N, N_data, replace=False)
-t_data = T_star[:, idx_t][idx_x,:].flatten()[:,None]
-x_data = X_star[:, idx_t][idx_x,:].flatten()[:,None]
-y_data = Y_star[:, idx_t][idx_x,:].flatten()[:,None]
-z_data = Y_star[:, idx_t][idx_x,:].flatten()[:,None]
 
-        
 T_eqns = T
 N_eqns = N
 idx_t = np.concatenate([np.array([0]), np.random.choice(T-2, T_eqns-2, replace=False)+1, np.array([T-1])] )
@@ -186,9 +188,12 @@ t_eqns = T_star[:, idx_t][idx_x,:].flatten()[:,None]
 x_eqns = X_star[:, idx_t][idx_x,:].flatten()[:,None]
 y_eqns = Y_star[:, idx_t][idx_x,:].flatten()[:,None]
 z_eqns = Z_star[:, idx_t][idx_x,:].flatten()[:,None]
+u_eqns = U_star[:, idx_t][idx_x,:].flatten()[:,None]
+v_eqns = V_star[:, idx_t][idx_x,:].flatten()[:,None]
+w_eqns = W_star[:, idx_t][idx_x,:].flatten()[:,None]
     
-data = np.concatenate((t_data, x_data, y_data, z_data), 1)
 eqns = np.concatenate((t_eqns, x_eqns, y_eqns, z_eqns), 1)
+vol = np.concatenate((u_eqns, v_eqns, w_eqns), 1)
     
     
 print("Data processed. Start training.")
@@ -198,7 +203,7 @@ print("Data processed. Start training.")
 #################################################################
 
 
-model = HFM(data, eqns, layers, Pec = 100, Rey = 100)
+model = HFM(eqns, vol, layers, Pec = 100, Rey = 100)
 model.train(traing_time, batch_size, lr)
     
     
